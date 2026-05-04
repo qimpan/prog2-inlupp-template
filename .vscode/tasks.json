@@ -7,7 +7,7 @@
             "command": "${env:COMSPEC}",
             "args": [
                 "/c",
-                "mvn clean package -Dmaven.test.skip"
+                "mvnw clean package -Dmaven.test.skip"
             ],
             "problemMatcher": [],
             "group": {
