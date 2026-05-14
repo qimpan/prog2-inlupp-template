@@ -126,17 +126,15 @@ public class ListGraph<T> implements Graph<T> {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
+
     for (T node : adjacencyList.keySet()) {
-      sb.append(node.toString()).append(": ");
+      sb.append(node).append(":").append("\n");
 
       for (Edge<T> edge : adjacencyList.get(node)) {
-        sb.append(edge.getDestination().toString())
-            .append("(")
-            .append(edge.getWeight())
-            .append(") ");
+        sb.append(edge.toString()).append("\n");
       }
-      sb.append("\n");
     }
+
     return sb.toString();
   }
 

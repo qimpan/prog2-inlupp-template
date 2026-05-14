@@ -11,10 +11,10 @@ public class DFSPathFinder<T> implements PathFinder<T> {
         }
         
         Set<T> visited = new HashSet<>();
-        return dfs(graph, from, to, visited);
+        return dfs(graph, from, to, visited, from);
     }
 
-    private Path<T> dfs(Graph<T> graph, T current, T to, Set<T> visited) {
+    private Path<T> dfs(Graph<T> graph, T current, T to, Set<T> visited, T start) {
         if (visited.contains(current)) {
             return null;
         }
@@ -22,11 +22,11 @@ public class DFSPathFinder<T> implements PathFinder<T> {
         visited.add(current);
 
         if (current.equals(to)) {
-            return new MyPath<>(current, new ArrayList<>());
+            return new MyPath<>(start, new ArrayList<>());
         }
 
         for (Edge<T> edge : graph.getEdgesFrom(current)) {
-            Path<T> res = dfs(graph, edge.getDestination(), to, visited);
+            Path<T> res = dfs(graph, edge.getDestination(), to, visited, start);
 
             if (res != null) {
   
