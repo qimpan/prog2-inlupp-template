@@ -16,12 +16,20 @@ import java.util.List;
 import java.util.Map;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Button;
 
 public class Gui extends Application {
 
   private Map<String, StackPane> nodeViews = new HashMap<>();
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
+
+  //lista för linjer
+  private Map<String, Line> edgeLines = new HashMap<>();
+
+  private String selectedNode1 = null;
+  private String selectedNode2 = null;
+  private BFSPathFinder<String> bfsFinder = new BFSPathFinder<>();
 
   public void start(Stage stage) {
     Graph<String> graph = new ListGraph<String>();
@@ -164,6 +172,8 @@ public class Gui extends Application {
 
         updateLine(line, fromNode, toNode);
 
+        edgeLines.put(game + "->" + edge.getDestination(), line);
+
         Tooltip tooltip = new Tooltip("Similarity: " + edge.getWeight());
         Tooltip.install(line, tooltip);
 
@@ -189,6 +199,28 @@ public class Gui extends Application {
     stage.setScene(scene);
     stage.setMaximized(true);
     stage.show();
+
+    Button searchBtn = new Button("Hitta väg");
+    searchBtn.setLayoutX(10);
+    searchBtn.setLayoutY(10);
+
+    searchBtn.setOnAction(event -> {
+        if (selectedNode1 != null && selectedNode2 != null) {
+            resetLines();
+            Path<String> path = bfsFinder.findPath(graph, selectedNode1, selectedNode2);
+            
+            if (path != null) {
+                highlightPath(path);
+            } else {
+                System.out.println("No path found between " + selectedNode1 + " and " + selectedNode2);
+            }
+
+            resetSelection();
+        }
+    });
+
+    root.getChildren().add(searchBtn);
+
   }
 
   public static void main(String[] args) {
@@ -230,6 +262,20 @@ public class Gui extends Application {
         updateLine(line, node1, node2);
       }
     });
+
+    gameNode.setOnMouseClicked(event -> {
+      Rectangle rect = (Rectangle) gameNode.getChildren().get(0);
+
+      if (selectedNode1 == null) {
+          selectedNode1 = title;
+          rect.setStroke(Color.GOLD);
+          rect.setStrokeWidth(5);
+      } else if (selectedNode2 == null && !title.equals(selectedNode1)) {
+          selectedNode2 = title;
+          rect.setStroke(Color.GOLD); 
+          rect.setStrokeWidth(5);
+      }
+});
     return gameNode;
   }
 
@@ -262,4 +308,46 @@ public class Gui extends Application {
     }
   }
 
+  private void highlightPath(Path<String> path) {
+      List<String> nodes = path.getNodes();
+      
+      for (int i = 0; i < nodes.size() - 1; i++) {
+          String from = nodes.get(i);
+          String to = nodes.get(i + 1);
+          
+          String key = from + "->" + to;
+
+          Line line = edgeLines.get(key);
+
+          if(line == null){
+
+            key = to + "->" + from;
+
+            line = edgeLines.get(key);
+          }
+
+          if(line != null){
+            line.setStroke(Color.GOLD);
+            line.setStrokeWidth(6);
+          }
+      }
+  }
+
+  private void resetLines() {
+    for (Line l : edgeLines.values()) {
+        l.setStroke(Color.DARKSLATEGRAY);
+        l.setStrokeWidth(3);
+    }
+  }
+
+  private void resetSelection() {
+    selectedNode1 = null;
+    selectedNode2 = null;
+
+    for (StackPane node : nodeViews.values()) {
+        Rectangle rect = (Rectangle) node.getChildren().get(0);
+        rect.setStroke(Color.BLACK);
+        rect.setStrokeWidth(1);
+    }
+}
 }
