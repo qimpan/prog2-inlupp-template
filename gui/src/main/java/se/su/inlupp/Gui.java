@@ -9,7 +9,10 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
@@ -17,6 +20,8 @@ import javafx.scene.control.ScrollPane;
 public class Gui extends Application {
 
   private Map<String, StackPane> nodeViews = new HashMap<>();
+  private Map<String, List<Line>> connectedLines = new HashMap<>();
+  private Map<Line, String[]> lineConnections = new HashMap<>();
 
   public void start(Stage stage) {
     Graph<String> graph = new ListGraph<String>();
@@ -136,7 +141,8 @@ public class Gui extends Application {
       double x = pos[0];
       double y = pos[1];
 
-      StackPane node = createGameNode(game, getGameColor(game), x, y);
+      StackPane node = createGameNode(game, game, getGameColor(game), x, y);
+      connectedLines.put(game, new ArrayList<>());
       nodeViews.put(game, node);
       root.getChildren().add(node);
     }
@@ -149,20 +155,25 @@ public class Gui extends Application {
         StackPane toNode = nodeViews.get(edge.getDestination());
 
         Line line = new Line();
-        line.setStrokeWidth(3);
+        line.setStrokeWidth(4);
         line.setStroke(Color.DARKSLATEGRAY);
+
+        connectedLines.get(game).add(line);
+        connectedLines.get(edge.getDestination()).add(line);
+        lineConnections.put(line, new String[] { game, edge.getDestination() });
+
         updateLine(line, fromNode, toNode);
 
         Tooltip tooltip = new Tooltip("Similarity: " + edge.getWeight());
         Tooltip.install(line, tooltip);
 
-        Text weightText = new Text(String.valueOf(edge.getWeight()));
-        double middleX = (line.getStartX() + line.getEndX()) / 2;
-        double middleY = (line.getStartY() + line.getEndY()) / 2;
-        weightText.setX(middleX);
-        weightText.setY(middleY);
+        // Text weightText = new Text(String.valueOf(edge.getWeight()));
+        // double middleX = (line.getStartX() + line.getEndX()) / 2;
+        // double middleY = (line.getStartY() + line.getEndY()) / 2;
+        // weightText.setX(middleX);
+        // weightText.setY(middleY);
 
-        root.getChildren().addAll(line, weightText);
+        root.getChildren().addAll(line);
       }
     }
 
@@ -195,7 +206,7 @@ public class Gui extends Application {
     line.setEndY(gameNode2.getLayoutY() + middlePosY);
   }
 
-  private StackPane createGameNode(String title, Color color, double x, double y) {
+  private StackPane createGameNode(String game, String title, Color color, double x, double y) {
     StackPane gameNode = new StackPane();
     Rectangle gameBox = new Rectangle(150, 60);
     gameBox.setFill(color);
@@ -212,6 +223,12 @@ public class Gui extends Application {
     gameNode.setOnMouseDragged(event -> {
       gameNode.setLayoutX(event.getSceneX() - mouseOffset[0]);
       gameNode.setLayoutY(event.getSceneY() - mouseOffset[1]);
+      for (Line line : connectedLines.get(game)) {
+        String[] endpoints = lineConnections.get(line);
+        StackPane node1 = nodeViews.get(endpoints[0]);
+        StackPane node2 = nodeViews.get(endpoints[1]);
+        updateLine(line, node1, node2);
+      }
     });
     return gameNode;
   }
