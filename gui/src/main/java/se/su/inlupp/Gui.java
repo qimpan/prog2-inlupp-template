@@ -1,6 +1,12 @@
 package se.su.inlupp;
 
 import javafx.application.Application;
+import javafx.application.Platform;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.scene.layout.Pane;
@@ -9,14 +15,15 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Button;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ChoiceDialog;
 
 public class Gui extends Application {
 
@@ -24,126 +31,57 @@ public class Gui extends Application {
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
 
-  //lista för linjer
+  // lista för linjer
   private Map<String, Line> edgeLines = new HashMap<>();
 
   private String selectedNode1 = null;
   private String selectedNode2 = null;
-  private BFSPathFinder<String> bfsFinder = new BFSPathFinder<>();
+  private final GameGraphModel model = new GameGraphModel();
 
   public void start(Stage stage) {
-    Graph<String> graph = new ListGraph<String>();
-
-    //
-    // Soulslike
-    //
-    graph.add("Elden Ring");
-    graph.add("Dark Souls");
-    graph.add("Sekiro");
-    graph.add("Bloodborne");
-    graph.add("Lies of P");
-
-    graph.connect("Elden Ring", "Dark Souls", "similar", 10);
-    graph.connect("Dark Souls", "Sekiro", "similar", 8);
-    graph.connect("Elden Ring", "Bloodborne", "similar", 8);
-    graph.connect("Dark Souls", "Bloodborne", "similar", 9);
-    graph.connect("Sekiro", "Bloodborne", "similar", 6);
-    graph.connect("Lies of P", "Bloodborne", "similar", 9);
-    graph.connect("Lies of P", "Dark Souls", "similar", 8);
-    graph.connect("Lies of P", "Elden Ring", "similar", 7);
-
-    //
-    // Sandbox/Survival
-    //
-    graph.add("Minecraft");
-    graph.add("Terraria");
-    graph.add("Valheim");
-    graph.add("Ark");
-    graph.add("The Forest");
-
-    graph.connect("Minecraft", "Valheim", "similar", 7);
-    graph.connect("Minecraft", "Ark", "similar", 6);
-    graph.connect("Minecraft", "Terraria", "similar", 9);
-    graph.connect("Valheim", "Terraria", "similar", 6);
-    graph.connect("Valheim", "The Forest", "similar", 7);
-    graph.connect("Ark", "Valheim", "similar", 8);
-    graph.connect("Ark", "The Forest", "similar", 8);
-
-    //
-    // Metroidvania
-    //
-    graph.add("Hollow Knight");
-    graph.add("Blasphemous");
-    graph.add("Dead Cells");
-    graph.add("Ori and the blind forest");
-    graph.add("Celeste");
-
-    graph.connect("Hollow Knight", "Dead Cells", "similar", 7);
-    graph.connect("Hollow Knight", "Blasphemous", "similar", 8);
-    graph.connect("Ori and the blind forest", "Hollow Knight", "similar", 7);
-    graph.connect("Ori and the blind forest", "Dead Cells", "similar", 5);
-    graph.connect("Blasphemous", "Dead Cells", "similar", 6);
-    graph.connect("Celeste", "Ori and the blind forest", "similar", 7);
-    graph.connect("Celeste", "Hollow Knight", "similar", 5);
-
-    //
-    // RPG/Open World
-    //
-    graph.add("Skyrim");
-    graph.add("The Witcher 3");
-    graph.add("CyberPunk 2077");
-    graph.add("Starfield");
-    graph.add("Fallout 4");
-
-    graph.connect("Skyrim", "The Witcher 3", "similar", 8);
-    graph.connect("Skyrim", "Fallout 4", "similar", 7);
-    graph.connect("Starfield", "Fallout 4", "similar", 8);
-    graph.connect("Starfield", "CyberPunk 2077", "similar", 6);
-    graph.connect("Starfield", "Skyrim", "similar", 7);
-    graph.connect("The Witcher 3", "CyberPunk 2077", "similar", 9);
-    graph.connect("Fallout 4", "CyberPunk 2077", "similar", 5);
-
-    //
-    // Bridges between clusters
-    //
-    graph.connect("Elden Ring", "Skyrim", "similar", 4);
-    graph.connect("Terraria", "Hollow Knight", "similar", 4);
-    graph.connect("Fallout 4", "The Forest", "similar", 4);
-    graph.connect("Ori and the blind forest", "Sekiro", "similar", 5);
-    graph.connect("Valheim", "Skyrim", "similar", 6);
-
     Pane root = new Pane();
 
-    // node positions
-    Map<String, double[]> positions = new HashMap<>();
+    root.setOnMouseClicked(event -> {
+      if (event.getTarget() == root) {
+        resetSelection();
+      }
+    });
 
-    positions.put("Bloodborne", new double[] { 50, 100 });
-    positions.put("Dark Souls", new double[] { 250, 200 });
-    positions.put("Sekiro", new double[] { 450, 100 });
-    positions.put("Elden Ring", new double[] { 250, 20 });
-    positions.put("Lies of P", new double[] { 250, 380 });
+    createMenuBar(root);
+    Map<String, double[]> positions = createInitialPositions();
+    drawInitialGraph(root, positions);
 
-    positions.put("Minecraft", new double[] { 50, 550 });
-    positions.put("Terraria", new double[] { 250, 650 });
-    positions.put("Valheim", new double[] { 450, 550 });
-    positions.put("Ark", new double[] { 250, 450 });
-    positions.put("The Forest", new double[] { 250, 820 });
+    // Buttons//
+    Button addNodeButton = createAddNodeButton(model, root);
+    addNodeButton.setLayoutX(10);
+    addNodeButton.setLayoutY(90);
+    root.getChildren().add(addNodeButton);
 
-    positions.put("Hollow Knight", new double[] { 750, 250 });
-    positions.put("Blasphemous", new double[] { 950, 350 });
-    positions.put("Dead Cells", new double[] { 750, 450 });
-    positions.put("Ori and the blind forest", new double[] { 550, 350 });
-    positions.put("Celeste", new double[] { 750, 620 });
+    Button removeNodeButton = createRemoveNodeButton(root);
+    root.getChildren().add(removeNodeButton);
 
-    positions.put("Skyrim", new double[] { 1250, 150 });
-    positions.put("The Witcher 3", new double[] { 1250, 350 });
-    positions.put("CyberPunk 2077", new double[] { 1250, 550 });
-    positions.put("Fallout 4", new double[] { 1450, 250 });
-    positions.put("Starfield", new double[] { 1450, 450 });
+    Button searchButton = createSearchButton(root);
+    root.getChildren().add(searchButton);
 
-    // node loop
-    for (String game : graph.getNodes()) {
-      System.out.println(game);
+    Button connectButton = createConnectButton(root);
+    root.getChildren().add(connectButton);
+
+    // Scene//
+    ScrollPane scrollPane = new ScrollPane(root);
+    Scene scene = new Scene(scrollPane, 1600, 900);
+    root.setStyle("-fx-background-color: burlywood;");
+    stage.setScene(scene);
+    stage.setMaximized(true);
+    stage.show();
+
+  }
+
+  public static void main(String[] args) {
+    launch(args);
+  }
+
+  private void drawInitialGraph(Pane root, Map<String, double[]> positions) {
+    for (String game : model.getGames()) {
       double[] pos = positions.get(game);
 
       double x = pos[0];
@@ -155,76 +93,176 @@ public class Gui extends Application {
       root.getChildren().add(node);
     }
 
-    // edge loop
-    for (String game : graph.getNodes()) {
-
-      for (Edge<String> edge : graph.getEdgesFrom(game)) {
-        StackPane fromNode = nodeViews.get(game);
-        StackPane toNode = nodeViews.get(edge.getDestination());
-
-        Line line = new Line();
-        line.setStrokeWidth(4);
-        line.setStroke(Color.DARKSLATEGRAY);
-
-        connectedLines.get(game).add(line);
-        connectedLines.get(edge.getDestination()).add(line);
-        lineConnections.put(line, new String[] { game, edge.getDestination() });
-
-        updateLine(line, fromNode, toNode);
-
-        edgeLines.put(game + "->" + edge.getDestination(), line);
-
-        Tooltip tooltip = new Tooltip("Similarity: " + edge.getWeight());
-        Tooltip.install(line, tooltip);
-
-        // Text weightText = new Text(String.valueOf(edge.getWeight()));
-        // double middleX = (line.getStartX() + line.getEndX()) / 2;
-        // double middleY = (line.getStartY() + line.getEndY()) / 2;
-        // weightText.setX(middleX);
-        // weightText.setY(middleY);
-
-        root.getChildren().addAll(line);
+    for (String game : model.getGames()) {
+      for (Edge<String> edge : model.getEdgesFrom(game)) {
+        addEdgeView(root, game, edge.getDestination(), edge.getName(), edge.getWeight());
       }
     }
 
-    // nodes to front
+    bringNodesToFront();
+  }
+
+  private Button createRemoveNodeButton(Pane root) {
+    Button removeNodeButton = new Button("Remove Game");
+    removeNodeButton.setLayoutX(10);
+    removeNodeButton.setLayoutY(130);
+
+    removeNodeButton.setOnAction(event -> {
+      if (selectedNode1 != null) {
+        String gameToRemove = selectedNode1;
+
+        try {
+          model.removeGame(gameToRemove);
+          removeGameView(root, gameToRemove);
+          resetSelection();
+        } catch (Exception e) {
+          showError("Error removing game", e.getMessage());
+        }
+      } else {
+        showError("No game selected", "Select a game to remove.");
+      }
+    });
+
+    return removeNodeButton;
+  }
+
+  private Button createAddNodeButton(GameGraphModel model, Pane root) {
+
+    Button addNodeButton = new Button("Add Game");
+
+    addNodeButton.setOnAction(event -> {
+      TextInputDialog dialog = new TextInputDialog();
+      dialog.setTitle("Add Game");
+      dialog.setHeaderText("Add a new Game");
+      dialog.setContentText("Game name;");
+
+      Optional<String> result = dialog.showAndWait();
+
+      if (result.isPresent()) {
+        String gameName = result.get().trim();
+
+        if (gameName.isEmpty()) {
+          showError("Invalid input", "Game name cannot be empty.");
+          return;
+        }
+
+        if (model.hasGame(gameName)) {
+          showError("Invalid input", "That game already exists.");
+          return;
+        }
+        model.addGame(gameName);
+
+        double x = 100 + (nodeViews.size() % 5) * 180;
+        double y = 150 + (nodeViews.size() / 5) * 100;
+
+        StackPane node = createGameNode(gameName, gameName, getGameColor(gameName), x, y);
+
+        connectedLines.put(gameName, new ArrayList<>());
+        nodeViews.put(gameName, node);
+        root.getChildren().add(node);
+        node.toFront();
+      }
+    });
+    return addNodeButton;
+  }
+
+  private Button createSearchButton(Pane root) {
+    Button searchButton = new Button("Find Path");
+    searchButton.setLayoutX(10);
+    searchButton.setLayoutY(50);
+
+    searchButton.setOnAction(event -> {
+      if (selectedNode1 != null && selectedNode2 != null) {
+        resetLines();
+        Path<String> path = model.findPath(selectedNode1, selectedNode2);
+
+        if (path != null) {
+          highlightPath(path);
+          showPathInfo(path);
+        } else {
+          showError("No path found", "No path found between " + selectedNode1 + " and " + selectedNode2 + ".");
+        }
+
+        resetSelection();
+      } else {
+        showError("No nodes selected", "Select two games before searching for a path.");
+      }
+    });
+
+    return searchButton;
+  }
+
+  private Button createConnectButton(Pane root) {
+
+    Button connectButton = new Button("Connect Games");
+    connectButton.setLayoutX(10);
+    connectButton.setLayoutY(170);
+
+    connectButton.setOnAction(event -> {
+      if (selectedNode1 == null || selectedNode2 == null) {
+        showError("No games selected", "Select two games to connect.");
+        return;
+      } else {
+        String from = selectedNode1;
+        String to = selectedNode2;
+
+        ChoiceDialog<String> nameDialog = new ChoiceDialog<>("other", model.getSimilarityTypes());
+        nameDialog.setTitle("Similarity type");
+        nameDialog.setHeaderText("Connect " + from + " and " + to);
+        nameDialog.setContentText("Choose similarity type:");
+
+        Optional<String> nameResult = nameDialog.showAndWait();
+
+        if (nameResult.isEmpty()) {
+          return;
+        }
+
+        String connectionName = nameResult.get();
+
+        TextInputDialog scoreDialog = new TextInputDialog();
+        scoreDialog.setTitle("Similarity score");
+        scoreDialog.setHeaderText("Connect " + from + " and " + to);
+        scoreDialog.setContentText("Enter similarity score (1-10):");
+
+        Optional<String> scoreResult = scoreDialog.showAndWait();
+
+        if (scoreResult.isEmpty()) {
+          return;
+        }
+
+        int similarityScore;
+
+        try {
+          similarityScore = Integer.parseInt((scoreResult.get().trim()));
+        } catch (NumberFormatException e) {
+          showError("Invalid input", "Similarity score must be a number.");
+          return;
+        }
+
+        if (!model.isValidSimilarityScore(similarityScore)) {
+          showError("Invalid input", "Similarity score must be between 1 and 10.");
+          return;
+        }
+
+        try {
+          model.connectGames(from, to, connectionName, similarityScore);
+          addEdgeView(root, from, to, connectionName, similarityScore);
+          resetSelection();
+
+        } catch (IllegalStateException e) {
+          showError("Connection already exists", from + " and " + to + " are already connected.");
+        } catch (Exception e) {
+          showError("Could not connect games", e.getMessage());
+        }
+      }
+    });
+    return connectButton;
+  }
+
+  private void bringNodesToFront() {
     for (StackPane node : nodeViews.values()) {
       node.toFront();
     }
-
-    ScrollPane scrollPane = new ScrollPane(root);
-
-    Scene scene = new Scene(scrollPane, 1600, 900);
-    root.setStyle("-fx-background-color: burlywood;");
-    stage.setScene(scene);
-    stage.setMaximized(true);
-    stage.show();
-
-    Button searchBtn = new Button("Hitta väg");
-    searchBtn.setLayoutX(10);
-    searchBtn.setLayoutY(10);
-
-    searchBtn.setOnAction(event -> {
-        if (selectedNode1 != null && selectedNode2 != null) {
-            resetLines();
-            Path<String> path = bfsFinder.findPath(graph, selectedNode1, selectedNode2);
-            
-            if (path != null) {
-                highlightPath(path);
-            } else {
-                System.out.println("No path found between " + selectedNode1 + " and " + selectedNode2);
-            }
-
-            resetSelection();
-        }
-    });
-
-    root.getChildren().add(searchBtn);
-
-  }
-
-  public static void main(String[] args) {
-    launch(args);
   }
 
   private void updateLine(Line line, StackPane gameNode, StackPane gameNode2) {
@@ -266,16 +304,23 @@ public class Gui extends Application {
     gameNode.setOnMouseClicked(event -> {
       Rectangle rect = (Rectangle) gameNode.getChildren().get(0);
 
-      if (selectedNode1 == null) {
-          selectedNode1 = title;
-          rect.setStroke(Color.GOLD);
-          rect.setStrokeWidth(5);
-      } else if (selectedNode2 == null && !title.equals(selectedNode1)) {
-          selectedNode2 = title;
-          rect.setStroke(Color.GOLD); 
-          rect.setStrokeWidth(5);
+      if (title.equals(selectedNode1) || title.equals(selectedNode2)) {
+        resetSelection();
+        event.consume();
+        return;
       }
-});
+
+      if (selectedNode1 == null) {
+        selectedNode1 = title;
+        rect.setStroke(Color.GOLD);
+        rect.setStrokeWidth(5);
+      } else if (selectedNode2 == null && !title.equals(selectedNode1)) {
+        selectedNode2 = title;
+        rect.setStroke(Color.GOLD);
+        rect.setStrokeWidth(5);
+      }
+      event.consume();
+    });
     return gameNode;
   }
 
@@ -309,34 +354,47 @@ public class Gui extends Application {
   }
 
   private void highlightPath(Path<String> path) {
-      List<String> nodes = path.getNodes();
-      
-      for (int i = 0; i < nodes.size() - 1; i++) {
-          String from = nodes.get(i);
-          String to = nodes.get(i + 1);
-          
-          String key = from + "->" + to;
+    List<String> nodes = path.getNodes();
+    List<Edge<String>> edges = path.getEdges();
 
-          Line line = edgeLines.get(key);
+    for (int i = 0; i < nodes.size() - 1; i++) {
+      String from = nodes.get(i);
+      String to = nodes.get(i + 1);
 
-          if(line == null){
+      String key = from + "->" + to;
 
-            key = to + "->" + from;
+      Line line = edgeLines.get(key);
 
-            line = edgeLines.get(key);
-          }
+      if (line == null) {
 
-          if(line != null){
-            line.setStroke(Color.GOLD);
-            line.setStrokeWidth(6);
-          }
+        key = to + "->" + from;
+
+        line = edgeLines.get(key);
       }
+
+      if (line != null) {
+        line.setStroke(getPathColor(edges.get(i).getWeight()));
+        line.setStrokeWidth(6);
+      }
+      line.toFront();
+      bringNodesToFront();
+    }
+  }
+
+  private Color getPathColor(int weight) {
+    if (weight < 4) {
+      return Color.TOMATO;
+    }
+    if (weight <= 6) {
+      return Color.GOLD;
+    }
+    return Color.MEDIUMSEAGREEN;
   }
 
   private void resetLines() {
     for (Line l : edgeLines.values()) {
-        l.setStroke(Color.DARKSLATEGRAY);
-        l.setStrokeWidth(3);
+      l.setStroke(Color.DARKSLATEGRAY);
+      l.setStrokeWidth(3);
     }
   }
 
@@ -345,9 +403,197 @@ public class Gui extends Application {
     selectedNode2 = null;
 
     for (StackPane node : nodeViews.values()) {
-        Rectangle rect = (Rectangle) node.getChildren().get(0);
-        rect.setStroke(Color.BLACK);
-        rect.setStrokeWidth(1);
+      Rectangle rect = (Rectangle) node.getChildren().get(0);
+      rect.setStroke(Color.BLACK);
+      rect.setStrokeWidth(1);
     }
-}
+  }
+
+  private void showError(String header, String message) {
+    Alert alert = new Alert(Alert.AlertType.ERROR);
+    alert.setTitle("Error");
+    alert.setHeaderText(header);
+    alert.setContentText(message);
+    alert.showAndWait();
+  }
+
+  private void showInfo(String header, String message) {
+    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+    alert.setTitle("Info");
+    alert.setHeaderText(header);
+    alert.setContentText(message);
+    alert.showAndWait();
+  }
+
+  private void showPathInfo(Path<String> path) {
+    StringBuilder message = new StringBuilder();
+
+    message.append("Games:\n");
+    for (String node : path.getNodes()) {
+      message.append(node).append("\n");
+    }
+
+    message.append("\nLinks:\n");
+    String current = path.getStart();
+    for (Edge<String> edge : path.getEdges()) {
+      message.append(current)
+          .append(" -> ")
+          .append(edge.getDestination())
+          .append(" (")
+          .append(edge.getName())
+          .append(", Similarity Score: ")
+          .append(edge.getWeight())
+          .append("/10")
+          .append(")\n");
+      current = edge.getDestination();
+    }
+
+    message.append("\nCombined path score: ").append(path.getTotalWeight());
+
+    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+    alert.setTitle("Path found");
+    alert.setHeaderText("Path from " + path.getStart() + " to " + path.getEnd());
+    alert.setContentText(message.toString());
+    alert.showAndWait();
+  }
+
+  private void removeGameView(Pane root, String gameName) {
+    StackPane node = nodeViews.get(gameName);
+    if (node != null) {
+      List<Line> linesToRemove = connectedLines.get(gameName);
+      if (linesToRemove != null) {
+        for (Line line : new ArrayList<>(linesToRemove)) {
+          root.getChildren().remove(line);
+
+          String[] endpoints = lineConnections.get(line);
+          if (endpoints != null) {
+            String nodeA = endpoints[0];
+            String nodeB = endpoints[1];
+
+            if (connectedLines.containsKey(nodeA)) {
+              connectedLines.get(nodeA).remove(line);
+            }
+            if (connectedLines.containsKey(nodeB)) {
+              connectedLines.get(nodeB).remove(line);
+            }
+
+            edgeLines.remove(nodeA + "->" + nodeB);
+            edgeLines.remove(nodeB + "->" + nodeA);
+          }
+
+          lineConnections.remove(line);
+        }
+      }
+
+      root.getChildren().remove(node);
+      nodeViews.remove(gameName);
+      connectedLines.remove(gameName);
+    } else {
+      showError("Error", "Game node not found in view.");
+    }
+  }
+
+  private void addEdgeView(Pane root, String from, String to, String connectionName, int similarityScore) {
+
+    StackPane fromNode = nodeViews.get(from);
+    StackPane toNode = nodeViews.get(to);
+
+    if (fromNode == null || toNode == null) {
+      showError("Error", "One or both game nodes not found in view");
+      return;
+    }
+
+    Line line = new Line();
+    line.setStrokeWidth(4);
+    line.setStroke(Color.DARKSLATEGRAY);
+
+    connectedLines.get(from).add(line);
+    connectedLines.get(to).add(line);
+
+    lineConnections.put(line, new String[] { from, to });
+    updateLine(line, fromNode, toNode);
+
+    edgeLines.put(from + "->" + to, line);
+
+    Tooltip tooltip = new Tooltip(connectionName + ", Similarity: " + similarityScore);
+    Tooltip.install(line, tooltip);
+
+    root.getChildren().add(line);
+
+    for (StackPane node : nodeViews.values()) {
+      node.toFront();
+    }
+
+  }
+
+  private void createMenuBar(Pane root) {
+    MenuBar menuBar = new MenuBar();
+    Menu fileMenu = new Menu("File");
+    MenuItem newItem = new MenuItem("New");
+    MenuItem saveItem = new MenuItem("Save");
+    MenuItem loadItem = new MenuItem("Load");
+    MenuItem exitItem = new MenuItem("Exit");
+
+    exitItem.setOnAction(event -> {
+      Platform.exit();
+    });
+
+    newItem.setOnAction(event -> {
+      root.getChildren().clear();
+      root.getChildren().add(menuBar);
+    });
+    fileMenu.getItems().addAll(newItem, saveItem, loadItem, exitItem);
+
+    Menu AlgorithmMenu = new Menu("Algorithm");
+    MenuItem BFSItem = new MenuItem("BFS");
+    MenuItem DFSItem = new MenuItem("DFS");
+
+    BFSItem.setOnAction(event -> {
+      model.setSearchAlgorithm(GameGraphModel.SearchAlgorithm.BFS);
+      showInfo("Algorithm changed", "Using BFS");
+    });
+
+    DFSItem.setOnAction(event -> {
+      model.setSearchAlgorithm(GameGraphModel.SearchAlgorithm.DFS);
+      showInfo("Algorithm changed", "Using DFS");
+    });
+
+    AlgorithmMenu.getItems().addAll(BFSItem, DFSItem);
+
+    menuBar.getMenus().addAll(fileMenu, AlgorithmMenu);
+    menuBar.setLayoutX(10);
+    menuBar.setLayoutY(10);
+    root.getChildren().add(menuBar);
+  }
+
+  private Map<String, double[]> createInitialPositions() {
+    Map<String, double[]> positions = new HashMap<>();
+
+    positions.put("Bloodborne", new double[] { 150, 100 });
+    positions.put("Dark Souls", new double[] { 350, 200 });
+    positions.put("Sekiro", new double[] { 550, 100 });
+    positions.put("Elden Ring", new double[] { 350, 20 });
+    positions.put("Lies of P", new double[] { 350, 380 });
+
+    positions.put("Minecraft", new double[] { 150, 550 });
+    positions.put("Terraria", new double[] { 350, 650 });
+    positions.put("Valheim", new double[] { 550, 550 });
+    positions.put("Ark", new double[] { 350, 450 });
+    positions.put("The Forest", new double[] { 350, 820 });
+
+    positions.put("Hollow Knight", new double[] { 850, 250 });
+    positions.put("Blasphemous", new double[] { 1050, 350 });
+    positions.put("Dead Cells", new double[] { 850, 450 });
+    positions.put("Ori and the blind forest", new double[] { 650, 350 });
+    positions.put("Celeste", new double[] { 850, 620 });
+
+    positions.put("Skyrim", new double[] { 1350, 150 });
+    positions.put("The Witcher 3", new double[] { 1350, 350 });
+    positions.put("CyberPunk 2077", new double[] { 1350, 550 });
+    positions.put("Fallout 4", new double[] { 1550, 250 });
+    positions.put("Starfield", new double[] { 1550, 450 });
+
+    return positions;
+  }
+
 }
