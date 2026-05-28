@@ -24,14 +24,18 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ChoiceDialog;
+import javafx.stage.FileChooser;
+import java.io.File;
+import java.io.PrintWriter;
 
 public class Gui extends Application {
+
+  private Pane graphPane = new Pane();
 
   private Map<String, StackPane> nodeViews = new HashMap<>();
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
 
-  // lista för linjer
   private Map<String, Line> edgeLines = new HashMap<>();
 
   private String selectedNode1 = null;
@@ -41,17 +45,18 @@ public class Gui extends Application {
   public void start(Stage stage) {
     Pane root = new Pane();
 
+    root.getChildren().add(graphPane);
+
     root.setOnMouseClicked(event -> {
-      if (event.getTarget() == root) {
+      if (event.getTarget() == root || event.getTarget() == graphPane) {
         resetSelection();
       }
     });
 
     createMenuBar(root);
     Map<String, double[]> positions = createInitialPositions();
-    drawInitialGraph(root, positions);
+    drawInitialGraph(graphPane, positions);
 
-    // Buttons//
     Button addNodeButton = createAddNodeButton(model, root);
     addNodeButton.setLayoutX(10);
     addNodeButton.setLayoutY(90);
@@ -73,14 +78,13 @@ public class Gui extends Application {
     stage.setScene(scene);
     stage.setMaximized(true);
     stage.show();
-
   }
 
   public static void main(String[] args) {
     launch(args);
   }
 
-  private void drawInitialGraph(Pane root, Map<String, double[]> positions) {
+  private void drawInitialGraph(Pane container, Map<String, double[]> positions) {
     for (String game : model.getGames()) {
       double[] pos = positions.get(game);
 
@@ -90,12 +94,12 @@ public class Gui extends Application {
       StackPane node = createGameNode(game, game, getGameColor(game), x, y);
       connectedLines.put(game, new ArrayList<>());
       nodeViews.put(game, node);
-      root.getChildren().add(node);
+      container.getChildren().add(node);
     }
 
     for (String game : model.getGames()) {
       for (Edge<String> edge : model.getEdgesFrom(game)) {
-        addEdgeView(root, game, edge.getDestination(), edge.getName(), edge.getWeight());
+        addEdgeView(container, game, edge.getDestination(), edge.getName(), edge.getWeight());
       }
     }
 
@@ -113,7 +117,7 @@ public class Gui extends Application {
 
         try {
           model.removeGame(gameToRemove);
-          removeGameView(root, gameToRemove);
+          removeGameView(graphPane, gameToRemove);
           resetSelection();
         } catch (Exception e) {
           showError("Error removing game", e.getMessage());
@@ -127,7 +131,6 @@ public class Gui extends Application {
   }
 
   private Button createAddNodeButton(GameGraphModel model, Pane root) {
-
     Button addNodeButton = new Button("Add Game");
 
     addNodeButton.setOnAction(event -> {
@@ -159,7 +162,7 @@ public class Gui extends Application {
 
         connectedLines.put(gameName, new ArrayList<>());
         nodeViews.put(gameName, node);
-        root.getChildren().add(node);
+        graphPane.getChildren().add(node);
         node.toFront();
       }
     });
@@ -193,7 +196,6 @@ public class Gui extends Application {
   }
 
   private Button createConnectButton(Pane root) {
-
     Button connectButton = new Button("Connect Games");
     connectButton.setLayoutX(10);
     connectButton.setLayoutY(170);
@@ -246,7 +248,7 @@ public class Gui extends Application {
 
         try {
           model.connectGames(from, to, connectionName, similarityScore);
-          addEdgeView(root, from, to, connectionName, similarityScore);
+          addEdgeView(graphPane, from, to, connectionName, similarityScore);
           resetSelection();
 
         } catch (IllegalStateException e) {
@@ -325,7 +327,6 @@ public class Gui extends Application {
   }
 
   private Color getGameColor(String game) {
-
     switch (game) {
       case "Elden Ring":
       case "Dark Souls":
@@ -366,9 +367,7 @@ public class Gui extends Application {
       Line line = edgeLines.get(key);
 
       if (line == null) {
-
         key = to + "->" + from;
-
         line = edgeLines.get(key);
       }
 
@@ -457,13 +456,13 @@ public class Gui extends Application {
     alert.showAndWait();
   }
 
-  private void removeGameView(Pane root, String gameName) {
+  private void removeGameView(Pane container, String gameName) {
     StackPane node = nodeViews.get(gameName);
     if (node != null) {
       List<Line> linesToRemove = connectedLines.get(gameName);
       if (linesToRemove != null) {
         for (Line line : new ArrayList<>(linesToRemove)) {
-          root.getChildren().remove(line);
+          container.getChildren().remove(line);
 
           String[] endpoints = lineConnections.get(line);
           if (endpoints != null) {
@@ -485,7 +484,7 @@ public class Gui extends Application {
         }
       }
 
-      root.getChildren().remove(node);
+      container.getChildren().remove(node);
       nodeViews.remove(gameName);
       connectedLines.remove(gameName);
     } else {
@@ -493,8 +492,7 @@ public class Gui extends Application {
     }
   }
 
-  private void addEdgeView(Pane root, String from, String to, String connectionName, int similarityScore) {
-
+  private void addEdgeView(Pane container, String from, String to, String connectionName, int similarityScore) {
     StackPane fromNode = nodeViews.get(from);
     StackPane toNode = nodeViews.get(to);
 
@@ -518,12 +516,11 @@ public class Gui extends Application {
     Tooltip tooltip = new Tooltip(connectionName + ", Similarity: " + similarityScore);
     Tooltip.install(line, tooltip);
 
-    root.getChildren().add(line);
+    container.getChildren().add(line);
 
     for (StackPane node : nodeViews.values()) {
       node.toFront();
     }
-
   }
 
   private void createMenuBar(Pane root) {
@@ -539,9 +536,107 @@ public class Gui extends Application {
     });
 
     newItem.setOnAction(event -> {
-      root.getChildren().clear();
-      root.getChildren().add(menuBar);
+      graphPane.getChildren().clear();
+      model.clearGraph();
+      nodeViews.clear();
+      connectedLines.clear();
+      lineConnections.clear();
+      edgeLines.clear();
     });
+
+    saveItem.setOnAction(event -> {
+      FileChooser fileChooser = new FileChooser();
+      File file = fileChooser.showSaveDialog(root.getScene().getWindow());
+
+      if (file != null) {
+        try (PrintWriter writer = new PrintWriter(file)) {
+          for (String game : model.getGames()) {
+            StackPane node = nodeViews.get(game);
+            double x = node.getLayoutX();
+            double y = node.getLayoutY();
+            writer.println("GAME: " + game + "," + x + "," + y);
+          }
+
+          for (String game : model.getGames()) {
+            for (Edge<String> edge : model.getEdgesFrom(game)) {
+              writer.println(
+                  "EDGE:" + game + "," + edge.getDestination() + "," + edge.getName() + "," + edge.getWeight());
+            }
+          }
+
+        } catch (java.io.FileNotFoundException e) {
+          showError("Fel", "Kunde inte hitta filen: " + e.getMessage());
+        }
+      }
+    });
+
+    loadItem.setOnAction(event -> {
+      FileChooser fileChooser = new FileChooser();
+      File file = fileChooser.showOpenDialog(root.getScene().getWindow());
+
+      if (file != null) {
+        try {
+          List<String> lines = new ArrayList<>();
+          try (java.util.Scanner scanner = new java.util.Scanner(file)) {
+            while (scanner.hasNextLine()) {
+              lines.add(scanner.nextLine());
+            }
+          }
+
+          graphPane.getChildren().clear();
+          model.clearGraph();
+
+          nodeViews.clear();
+          connectedLines.clear();
+          lineConnections.clear();
+          edgeLines.clear();
+
+          for (String line : lines) {
+            if (line.startsWith("GAME: ")) {
+              String data = line.replace("GAME: ", "").trim();
+              String[] nodeParts = data.split(",");
+
+              String game = nodeParts[0];
+              double x = Double.parseDouble(nodeParts[1]);
+              double y = Double.parseDouble(nodeParts[2]);
+
+              model.addGame(game);
+              StackPane node = createGameNode(game, game, getGameColor(game), x, y);
+              nodeViews.put(game, node);
+              connectedLines.put(game, new ArrayList<>());
+              graphPane.getChildren().add(node);
+              node.toFront();
+            }
+          }
+
+          for (String line : lines) {
+            if (line.startsWith("EDGE:")) {
+              String data = line.replace("EDGE:", "").trim();
+              String[] edgeParts = data.split(",");
+
+              String from = edgeParts[0];
+              String to = edgeParts[1];
+              String name = edgeParts[2];
+              int weight = Integer.parseInt(edgeParts[3].trim());
+
+              if (nodeViews.containsKey(from) && nodeViews.containsKey(to)) {
+
+                if (edgeLines.containsKey(from + "->" + to) || edgeLines.containsKey(to + "->" + from)) {
+                  continue;
+                }
+
+                model.connectGames(from, to, name, weight);
+                addEdgeView(graphPane, from, to, name, weight);
+              }
+            }
+          }
+        } catch (Exception e) {
+          showError("Fel vid laddning", e.getMessage());
+          e.printStackTrace();
+        }
+      }
+    });
+
     fileMenu.getItems().addAll(newItem, saveItem, loadItem, exitItem);
 
     Menu AlgorithmMenu = new Menu("Algorithm");
@@ -595,5 +690,4 @@ public class Gui extends Application {
 
     return positions;
   }
-
 }

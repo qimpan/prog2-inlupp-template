@@ -28,6 +28,11 @@ public class GameGraphModel {
     unsavedChanges = false;
   }
 
+  public void clearGraph() {
+    graph = new ListGraph<>();
+    unsavedChanges = true;
+  }
+
   public Set<String> getGames() {
     return graph.getNodes();
   }
