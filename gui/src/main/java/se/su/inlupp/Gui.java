@@ -26,6 +26,8 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ChoiceDialog;
 import javafx.stage.FileChooser;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import java.io.File;
 import java.io.PrintWriter;
 
@@ -37,6 +39,8 @@ public class Gui extends Application {
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
   private Map<String, Line> edgeLines = new HashMap<>();
+  
+  private Map<String, String> gameImages = new HashMap<>();
 
   private String selectedNode1 = null;
   private String selectedNode2 = null;
@@ -71,6 +75,9 @@ public class Gui extends Application {
 
     Button connectButton = createConnectButton(root);
     root.getChildren().add(connectButton);
+
+    Button addImageButton = createAddImageButton(root);
+    root.getChildren().add(addImageButton);
 
     stage.setOnCloseRequest(event -> {
       if (!checkUnsavedChanges()) {
@@ -110,7 +117,7 @@ public class Gui extends Application {
       double x = pos[0];
       double y = pos[1];
 
-      StackPane node = createGameNode(game, game, getGameColor(game), x, y);
+      StackPane node = createGameNode(game, game, getGameColor(game), x, y, "NONE");
       connectedLines.put(game, new ArrayList<>());
       nodeViews.put(game, node);
       container.getChildren().add(node);
@@ -138,9 +145,10 @@ public class Gui extends Application {
         try {
           model.removeGame(gameToRemove);
           removeGameView(graphPane, gameToRemove);
+          gameImages.remove(gameToRemove);
           resetSelection();
 
-          hasUnsavedChanges = true; // NYTT FÖR F7: Grafen har ändrats
+          hasUnsavedChanges = true;
         } catch (Exception e) {
           showError("Error removing game", e.getMessage());
         }
@@ -180,7 +188,7 @@ public class Gui extends Application {
         double x = 100 + (nodeViews.size() % 5) * 180;
         double y = 150 + (nodeViews.size() / 5) * 100;
 
-        StackPane node = createGameNode(gameName, gameName, getGameColor(gameName), x, y);
+        StackPane node = createGameNode(gameName, gameName, getGameColor(gameName), x, y, "NONE");
 
         connectedLines.put(gameName, new ArrayList<>());
         nodeViews.put(gameName, node);
@@ -191,6 +199,55 @@ public class Gui extends Application {
       }
     });
     return addNodeButton;
+  }
+
+  private Button createAddImageButton(Pane root) {
+    Button addImageButton = new Button("Add Image");
+    addImageButton.setLayoutX(10);
+    addImageButton.setLayoutY(210);
+
+    addImageButton.setOnAction(event -> {
+      if (selectedNode1 == null) {
+        showError("No game selected", "Select a game node first to add an image to it.");
+        return;
+      }
+
+      FileChooser fileChooser = new FileChooser();
+      fileChooser.setTitle("Välj bild för " + selectedNode1);
+      fileChooser.getExtensionFilters().addAll(
+          new FileChooser.ExtensionFilter("Bildfiler", "*.png", "*.jpg", "*.jpeg")
+      );
+
+      File file = fileChooser.showOpenDialog(root.getScene().getWindow());
+      if (file != null) {
+        try {
+          String imagePath = file.toURI().toString();
+          String game = selectedNode1;
+
+          gameImages.put(game, imagePath);
+
+          StackPane node = nodeViews.get(game);
+          
+          node.getChildren().removeIf(child -> child instanceof ImageView);
+
+          Image img = new Image(imagePath);
+          ImageView imgView = new ImageView(img);
+          imgView.setFitWidth(35);
+          imgView.setFitHeight(35);
+          imgView.setPreserveRatio(true);
+          imgView.setTranslateX(-45);
+
+          node.getChildren().add(imgView);
+          hasUnsavedChanges = true;
+          
+          resetSelection();
+        } catch (Exception e) {
+          showError("Fel vid bildladdning", "Kunde inte visa bilden: " + e.getMessage());
+        }
+      }
+    });
+
+    return addImageButton;
   }
 
   private Button createSearchButton(Pane root) {
@@ -304,7 +361,7 @@ public class Gui extends Application {
     line.setEndY(gameNode2.getLayoutY() + middlePosY);
   }
 
-  private StackPane createGameNode(String game, String title, Color color, double x, double y) {
+  private StackPane createGameNode(String game, String title, Color color, double x, double y, String imagePath) {
     StackPane gameNode = new StackPane();
     Rectangle gameBox = new Rectangle(150, 60);
     gameBox.setFill(color);
@@ -312,6 +369,21 @@ public class Gui extends Application {
     gameNode.getChildren().addAll(gameBox, gameText);
     gameNode.setLayoutX(x);
     gameNode.setLayoutY(y);
+
+    if (imagePath != null && !imagePath.equals("NONE")) {
+      try {
+        Image img = new Image(imagePath);
+        ImageView imgView = new ImageView(img);
+        imgView.setFitWidth(35);
+        imgView.setFitHeight(35);
+        imgView.setPreserveRatio(true);
+        imgView.setTranslateX(-45);
+        gameNode.getChildren().add(imgView);
+        gameImages.put(game, imagePath);
+      } catch (Exception e) {
+        System.out.println("Kunde inte ladda bild för " + game + ": " + imagePath);
+      }
+    }
 
     final double[] mouseOffset = new double[2];
     gameNode.setOnMousePressed(event -> {
@@ -574,6 +646,7 @@ public class Gui extends Application {
       connectedLines.clear();
       lineConnections.clear();
       edgeLines.clear();
+      gameImages.clear();
 
       hasUnsavedChanges = false;
     });
@@ -588,7 +661,9 @@ public class Gui extends Application {
             StackPane node = nodeViews.get(game);
             double x = node.getLayoutX();
             double y = node.getLayoutY();
-            writer.println("GAME: " + game + "," + x + "," + y);
+            String imgPath = gameImages.getOrDefault(game, "NONE");
+            
+            writer.println("GAME: " + game + "," + x + "," + y + "," + imgPath);
           }
 
           for (String game : model.getGames()) {
@@ -629,6 +704,7 @@ public class Gui extends Application {
           connectedLines.clear();
           lineConnections.clear();
           edgeLines.clear();
+          gameImages.clear();
 
           for (String line : lines) {
             if (line.startsWith("GAME: ")) {
@@ -638,9 +714,14 @@ public class Gui extends Application {
               String game = nodeParts[0];
               double x = Double.parseDouble(nodeParts[1]);
               double y = Double.parseDouble(nodeParts[2]);
+              
+              String imagePath = "NONE";
+              if (nodeParts.length > 3) {
+                imagePath = nodeParts[3];
+              }
 
               model.addGame(game);
-              StackPane node = createGameNode(game, game, getGameColor(game), x, y);
+              StackPane node = createGameNode(game, game, getGameColor(game), x, y, imagePath);
               nodeViews.put(game, node);
               connectedLines.put(game, new ArrayList<>());
               graphPane.getChildren().add(node);
