@@ -18,6 +18,7 @@ import javafx.scene.shape.Line;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -35,16 +36,16 @@ public class Gui extends Application {
   private Map<String, StackPane> nodeViews = new HashMap<>();
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
-
   private Map<String, Line> edgeLines = new HashMap<>();
 
   private String selectedNode1 = null;
   private String selectedNode2 = null;
   private final GameGraphModel model = new GameGraphModel();
 
+  private boolean hasUnsavedChanges = false;
+
   public void start(Stage stage) {
     Pane root = new Pane();
-
     root.getChildren().add(graphPane);
 
     root.setOnMouseClicked(event -> {
@@ -71,7 +72,12 @@ public class Gui extends Application {
     Button connectButton = createConnectButton(root);
     root.getChildren().add(connectButton);
 
-    // Scene//
+    stage.setOnCloseRequest(event -> {
+      if (!checkUnsavedChanges()) {
+        event.consume();
+      }
+    });
+
     ScrollPane scrollPane = new ScrollPane(root);
     Scene scene = new Scene(scrollPane, 1600, 900);
     root.setStyle("-fx-background-color: burlywood;");
@@ -84,10 +90,23 @@ public class Gui extends Application {
     launch(args);
   }
 
+  private boolean checkUnsavedChanges() {
+    if (!hasUnsavedChanges) {
+      return true;
+    }
+
+    Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+    alert.setTitle("Osparade ändringar");
+    alert.setHeaderText("Varning: Du har osparade ändringar!");
+    alert.setContentText("Vill du fortsätta ändå och förlora dina ändringar?");
+
+    Optional<ButtonType> result = alert.showAndWait();
+    return result.isPresent() && result.get() == ButtonType.OK;
+  }
+
   private void drawInitialGraph(Pane container, Map<String, double[]> positions) {
     for (String game : model.getGames()) {
       double[] pos = positions.get(game);
-
       double x = pos[0];
       double y = pos[1];
 
@@ -102,8 +121,9 @@ public class Gui extends Application {
         addEdgeView(container, game, edge.getDestination(), edge.getName(), edge.getWeight());
       }
     }
-
     bringNodesToFront();
+
+    hasUnsavedChanges = false;
   }
 
   private Button createRemoveNodeButton(Pane root) {
@@ -119,6 +139,8 @@ public class Gui extends Application {
           model.removeGame(gameToRemove);
           removeGameView(graphPane, gameToRemove);
           resetSelection();
+
+          hasUnsavedChanges = true; // NYTT FÖR F7: Grafen har ändrats
         } catch (Exception e) {
           showError("Error removing game", e.getMessage());
         }
@@ -164,6 +186,8 @@ public class Gui extends Application {
         nodeViews.put(gameName, node);
         graphPane.getChildren().add(node);
         node.toFront();
+
+        hasUnsavedChanges = true;
       }
     });
     return addNodeButton;
@@ -251,6 +275,8 @@ public class Gui extends Application {
           addEdgeView(graphPane, from, to, connectionName, similarityScore);
           resetSelection();
 
+          hasUnsavedChanges = true;
+
         } catch (IllegalStateException e) {
           showError("Connection already exists", from + " and " + to + " are already connected.");
         } catch (Exception e) {
@@ -301,6 +327,8 @@ public class Gui extends Application {
         StackPane node2 = nodeViews.get(endpoints[1]);
         updateLine(line, node1, node2);
       }
+
+      hasUnsavedChanges = true;
     });
 
     gameNode.setOnMouseClicked(event -> {
@@ -363,7 +391,6 @@ public class Gui extends Application {
       String to = nodes.get(i + 1);
 
       String key = from + "->" + to;
-
       Line line = edgeLines.get(key);
 
       if (line == null) {
@@ -479,7 +506,6 @@ public class Gui extends Application {
             edgeLines.remove(nodeA + "->" + nodeB);
             edgeLines.remove(nodeB + "->" + nodeA);
           }
-
           lineConnections.remove(line);
         }
       }
@@ -532,16 +558,24 @@ public class Gui extends Application {
     MenuItem exitItem = new MenuItem("Exit");
 
     exitItem.setOnAction(event -> {
-      Platform.exit();
+      if (checkUnsavedChanges()) {
+        Platform.exit();
+      }
     });
 
     newItem.setOnAction(event -> {
+      if (!checkUnsavedChanges()) {
+        return;
+      }
+
       graphPane.getChildren().clear();
       model.clearGraph();
       nodeViews.clear();
       connectedLines.clear();
       lineConnections.clear();
       edgeLines.clear();
+
+      hasUnsavedChanges = false;
     });
 
     saveItem.setOnAction(event -> {
@@ -564,6 +598,8 @@ public class Gui extends Application {
             }
           }
 
+          hasUnsavedChanges = false;
+
         } catch (java.io.FileNotFoundException e) {
           showError("Fel", "Kunde inte hitta filen: " + e.getMessage());
         }
@@ -571,6 +607,10 @@ public class Gui extends Application {
     });
 
     loadItem.setOnAction(event -> {
+      if (!checkUnsavedChanges()) {
+        return;
+      }
+
       FileChooser fileChooser = new FileChooser();
       File file = fileChooser.showOpenDialog(root.getScene().getWindow());
 
@@ -585,7 +625,6 @@ public class Gui extends Application {
 
           graphPane.getChildren().clear();
           model.clearGraph();
-
           nodeViews.clear();
           connectedLines.clear();
           lineConnections.clear();
@@ -620,16 +659,17 @@ public class Gui extends Application {
               int weight = Integer.parseInt(edgeParts[3].trim());
 
               if (nodeViews.containsKey(from) && nodeViews.containsKey(to)) {
-
                 if (edgeLines.containsKey(from + "->" + to) || edgeLines.containsKey(to + "->" + from)) {
                   continue;
                 }
-
                 model.connectGames(from, to, name, weight);
                 addEdgeView(graphPane, from, to, name, weight);
               }
             }
           }
+
+          hasUnsavedChanges = false;
+
         } catch (Exception e) {
           showError("Fel vid laddning", e.getMessage());
           e.printStackTrace();
