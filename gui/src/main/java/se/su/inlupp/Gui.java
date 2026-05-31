@@ -46,6 +46,7 @@ public class Gui extends Application {
   private String selectedNode2 = null;
   private final GameGraphModel model = new GameGraphModel();
 
+  private FileHandler fileManager = new FileHandler();
   private boolean hasUnsavedChanges = false;
 
   public void start(Stage stage) {
