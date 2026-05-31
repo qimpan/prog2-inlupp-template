@@ -9,10 +9,13 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.geometry.Pos;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextAlignment;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.scene.control.Tooltip;
@@ -39,14 +42,18 @@ public class Gui extends Application {
   private Map<String, List<Line>> connectedLines = new HashMap<>();
   private Map<Line, String[]> lineConnections = new HashMap<>();
   private Map<String, Line> edgeLines = new HashMap<>();
-  
+
   private Map<String, String> gameImages = new HashMap<>();
 
   private String selectedNode1 = null;
   private String selectedNode2 = null;
   private final GameGraphModel model = new GameGraphModel();
+  private static final double CARD_WIDTH = 170;
+  private static final double CARD_HEIGHT = 92;
+  private static final double HEADER_HEIGHT = 30;
 
   private FileHandler fileManager = new FileHandler();
+  private Button showAllLinksButton;
   private boolean hasUnsavedChanges = false;
 
   public void start(Stage stage) {
@@ -63,9 +70,10 @@ public class Gui extends Application {
     Map<String, double[]> positions = createInitialPositions();
     drawInitialGraph(graphPane, positions);
 
+    createTopPanel(root);
+
     Button addNodeButton = createAddNodeButton(model, root);
-    addNodeButton.setLayoutX(10);
-    addNodeButton.setLayoutY(90);
+
     root.getChildren().add(addNodeButton);
 
     Button removeNodeButton = createRemoveNodeButton(root);
@@ -80,15 +88,19 @@ public class Gui extends Application {
     Button addImageButton = createAddImageButton(root);
     root.getChildren().add(addImageButton);
 
+    showAllLinksButton = createShowAllLinksButton(root);
+    root.getChildren().add(showAllLinksButton);
+
     stage.setOnCloseRequest(event -> {
       if (!checkUnsavedChanges()) {
         event.consume();
       }
     });
 
+
     ScrollPane scrollPane = new ScrollPane(root);
     Scene scene = new Scene(scrollPane, 1600, 900);
-    root.setStyle("-fx-background-color: burlywood;");
+    root.setStyle("-fx-background-color: ALICEBLUE;");
     stage.setScene(scene);
     stage.setMaximized(true);
     stage.show();
@@ -97,6 +109,7 @@ public class Gui extends Application {
   public static void main(String[] args) {
     launch(args);
   }
+
 
   private boolean checkUnsavedChanges() {
     if (!hasUnsavedChanges) {
@@ -134,10 +147,11 @@ public class Gui extends Application {
     hasUnsavedChanges = false;
   }
 
+  // #region Buttons
   private Button createRemoveNodeButton(Pane root) {
     Button removeNodeButton = new Button("Remove Game");
     removeNodeButton.setLayoutX(10);
-    removeNodeButton.setLayoutY(130);
+    removeNodeButton.setLayoutY(230);
 
     removeNodeButton.setOnAction(event -> {
       if (selectedNode1 != null) {
@@ -163,6 +177,8 @@ public class Gui extends Application {
 
   private Button createAddNodeButton(GameGraphModel model, Pane root) {
     Button addNodeButton = new Button("Add Game");
+    addNodeButton.setLayoutX(10);
+    addNodeButton.setLayoutY(190);
 
     addNodeButton.setOnAction(event -> {
       TextInputDialog dialog = new TextInputDialog();
@@ -205,7 +221,7 @@ public class Gui extends Application {
   private Button createAddImageButton(Pane root) {
     Button addImageButton = new Button("Add Image");
     addImageButton.setLayoutX(10);
-    addImageButton.setLayoutY(210);
+    addImageButton.setLayoutY(310);
 
     addImageButton.setOnAction(event -> {
       if (selectedNode1 == null) {
@@ -216,8 +232,7 @@ public class Gui extends Application {
       FileChooser fileChooser = new FileChooser();
       fileChooser.setTitle("Välj bild för " + selectedNode1);
       fileChooser.getExtensionFilters().addAll(
-          new FileChooser.ExtensionFilter("Bildfiler", "*.png", "*.jpg", "*.jpeg")
-      );
+          new FileChooser.ExtensionFilter("Bildfiler", "*.png", "*.jpg", "*.jpeg"));
 
       File file = fileChooser.showOpenDialog(root.getScene().getWindow());
       if (file != null) {
@@ -228,19 +243,12 @@ public class Gui extends Application {
           gameImages.put(game, imagePath);
 
           StackPane node = nodeViews.get(game);
-          
+
           node.getChildren().removeIf(child -> child instanceof ImageView);
 
-          Image img = new Image(imagePath);
-          ImageView imgView = new ImageView(img);
-          imgView.setFitWidth(35);
-          imgView.setFitHeight(35);
-          imgView.setPreserveRatio(true);
-          imgView.setTranslateX(-45);
-
-          node.getChildren().add(imgView);
+          node.getChildren().add(createGameImageView(imagePath));
           hasUnsavedChanges = true;
-          
+
           resetSelection();
         } catch (Exception e) {
           showError("Fel vid bildladdning", "Kunde inte visa bilden: " + e.getMessage());
@@ -254,7 +262,7 @@ public class Gui extends Application {
   private Button createSearchButton(Pane root) {
     Button searchButton = new Button("Find Path");
     searchButton.setLayoutX(10);
-    searchButton.setLayoutY(50);
+    searchButton.setLayoutY(150);
 
     searchButton.setOnAction(event -> {
       if (selectedNode1 != null && selectedNode2 != null) {
@@ -280,7 +288,7 @@ public class Gui extends Application {
   private Button createConnectButton(Pane root) {
     Button connectButton = new Button("Connect Games");
     connectButton.setLayoutX(10);
-    connectButton.setLayoutY(170);
+    connectButton.setLayoutY(270);
 
     connectButton.setOnAction(event -> {
       if (selectedNode1 == null || selectedNode2 == null) {
@@ -345,6 +353,20 @@ public class Gui extends Application {
     return connectButton;
   }
 
+  private Button createShowAllLinksButton(Pane root) {
+    Button showAllLinksButton = new Button("Show All Links");
+    showAllLinksButton.setLayoutX(10);
+    showAllLinksButton.setLayoutY(350);
+    showAllLinksButton.setVisible(false);
+
+    showAllLinksButton.setOnAction(event -> {
+      resetLines();
+    });
+    return showAllLinksButton;
+  }
+  // #endregion
+
+  // #region Node And Edge Rendering
   private void bringNodesToFront() {
     for (StackPane node : nodeViews.values()) {
       node.toFront();
@@ -352,8 +374,8 @@ public class Gui extends Application {
   }
 
   private void updateLine(Line line, StackPane gameNode, StackPane gameNode2) {
-    int middlePosX = 75;
-    int middlePosY = 30;
+    double middlePosX = CARD_WIDTH / 2;
+    double middlePosY = CARD_HEIGHT / 2;
 
     line.setStartX(gameNode.getLayoutX() + middlePosX);
     line.setStartY(gameNode.getLayoutY() + middlePosY);
@@ -364,22 +386,29 @@ public class Gui extends Application {
 
   private StackPane createGameNode(String game, String title, Color color, double x, double y, String imagePath) {
     StackPane gameNode = new StackPane();
-    Rectangle gameBox = new Rectangle(150, 60);
-    gameBox.setFill(color);
-    Text gameText = new Text(title);
-    gameNode.getChildren().addAll(gameBox, gameText);
+    Rectangle gameBox = new Rectangle(CARD_WIDTH, CARD_HEIGHT);
+    gameBox.setArcWidth(14);
+    gameBox.setArcHeight(14);
+    gameBox.setFill(Color.WHITE);
+    gameBox.setStroke(Color.web("#1f2937"));
+    gameBox.setStrokeWidth(2);
+    gameBox.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 8, 0.2, 0, 2);");
+
+    VBox cardContent = new VBox();
+    cardContent.setPrefSize(CARD_WIDTH, CARD_HEIGHT);
+    cardContent.setMaxSize(CARD_WIDTH, CARD_HEIGHT);
+    cardContent.setAlignment(Pos.TOP_CENTER);
+
+    StackPane header = createGameCardHeader(title, color);
+    cardContent.getChildren().add(header);
+
+    gameNode.getChildren().addAll(gameBox, cardContent);
     gameNode.setLayoutX(x);
     gameNode.setLayoutY(y);
 
     if (imagePath != null && !imagePath.equals("NONE")) {
       try {
-        Image img = new Image(imagePath);
-        ImageView imgView = new ImageView(img);
-        imgView.setFitWidth(35);
-        imgView.setFitHeight(35);
-        imgView.setPreserveRatio(true);
-        imgView.setTranslateX(-45);
-        gameNode.getChildren().add(imgView);
+        gameNode.getChildren().add(createGameImageView(imagePath));
         gameImages.put(game, imagePath);
       } catch (Exception e) {
         System.out.println("Kunde inte ladda bild för " + game + ": " + imagePath);
@@ -427,6 +456,37 @@ public class Gui extends Application {
     return gameNode;
   }
 
+  private StackPane createGameCardHeader(String title, Color color) {
+    StackPane header = new StackPane();
+    header.setPrefSize(CARD_WIDTH, HEADER_HEIGHT);
+    header.setMaxSize(CARD_WIDTH, HEADER_HEIGHT);
+
+    Rectangle headerBackground = new Rectangle(CARD_WIDTH, HEADER_HEIGHT);
+    headerBackground.setArcWidth(14);
+    headerBackground.setArcHeight(14);
+    headerBackground.setFill(color);
+
+    Text headerText = new Text(title);
+    headerText.setFill(Color.BLACK);
+    headerText.setStyle("-fx-font-size: 12px; -fx-font-weight:");
+    headerText.setTextAlignment(TextAlignment.CENTER);
+    headerText.setWrappingWidth(CARD_WIDTH - 20);
+
+    header.getChildren().addAll(headerBackground, headerText);
+    return header;
+  }
+
+  private ImageView createGameImageView(String imagePath) {
+    Image img = new Image(imagePath);
+    ImageView imgView = new ImageView(img);
+    imgView.setFitWidth(34);
+    imgView.setFitHeight(34);
+    imgView.setPreserveRatio(true);
+    imgView.setTranslateX(-52);
+    imgView.setTranslateY(22);
+    return imgView;
+  }
+
   private Color getGameColor(String game) {
     switch (game) {
       case "Elden Ring":
@@ -454,10 +514,17 @@ public class Gui extends Application {
         return Color.PLUM;
     }
   }
+  // #endregion
 
+  // #region Selection And Path Highlighting
   private void highlightPath(Path<String> path) {
     List<String> nodes = path.getNodes();
     List<Edge<String>> edges = path.getEdges();
+    hideAllLines();
+    if (showAllLinksButton != null) {
+      showAllLinksButton.setVisible(true);
+      showAllLinksButton.toFront();
+    }
 
     for (int i = 0; i < nodes.size() - 1; i++) {
       String from = nodes.get(i);
@@ -472,11 +539,12 @@ public class Gui extends Application {
       }
 
       if (line != null) {
+        line.setVisible(true);
         line.setStroke(getPathColor(edges.get(i).getWeight()));
         line.setStrokeWidth(6);
+        line.toFront();
+        bringNodesToFront();
       }
-      line.toFront();
-      bringNodesToFront();
     }
   }
 
@@ -492,8 +560,18 @@ public class Gui extends Application {
 
   private void resetLines() {
     for (Line l : edgeLines.values()) {
+      l.setVisible(true);
       l.setStroke(Color.DARKSLATEGRAY);
       l.setStrokeWidth(3);
+    }
+    if (showAllLinksButton != null) {
+      showAllLinksButton.setVisible(false);
+    }
+  }
+
+  private void hideAllLines() {
+    for (Line line : edgeLines.values()) {
+      line.setVisible(false);
     }
   }
 
@@ -503,11 +581,13 @@ public class Gui extends Application {
 
     for (StackPane node : nodeViews.values()) {
       Rectangle rect = (Rectangle) node.getChildren().get(0);
-      rect.setStroke(Color.BLACK);
-      rect.setStrokeWidth(1);
+      rect.setStroke(Color.web("#1f2937"));
+      rect.setStrokeWidth(2);
     }
   }
+  // #endregion
 
+  // #region Dialogs
   private void showError(String header, String message) {
     Alert alert = new Alert(Alert.AlertType.ERROR);
     alert.setTitle("Error");
@@ -555,7 +635,9 @@ public class Gui extends Application {
     alert.setContentText(message.toString());
     alert.showAndWait();
   }
+  // #endregion
 
+  // #region Graph View Mutations
   private void removeGameView(Pane container, String gameName) {
     StackPane node = nodeViews.get(gameName);
     if (node != null) {
@@ -621,7 +703,9 @@ public class Gui extends Application {
       node.toFront();
     }
   }
+  // #endregion
 
+  // #region Menus And File Handling
   private void createMenuBar(Pane root) {
     MenuBar menuBar = new MenuBar();
     Menu fileMenu = new Menu("File");
@@ -649,6 +733,9 @@ public class Gui extends Application {
       edgeLines.clear();
       gameImages.clear();
 
+      root.setStyle("-fx-background-color: SEASHELL;");
+      graphPane.setStyle("");
+
       hasUnsavedChanges = false;
     });
 
@@ -663,7 +750,7 @@ public class Gui extends Application {
             double x = node.getLayoutX();
             double y = node.getLayoutY();
             String imgPath = gameImages.getOrDefault(game, "NONE");
-            
+
             writer.println("GAME: " + game + "," + x + "," + y + "," + imgPath);
           }
 
@@ -715,7 +802,7 @@ public class Gui extends Application {
               String game = nodeParts[0];
               double x = Double.parseDouble(nodeParts[1]);
               double y = Double.parseDouble(nodeParts[2]);
-              
+
               String imagePath = "NONE";
               if (nodeParts.length > 3) {
                 imagePath = nodeParts[3];
@@ -779,37 +866,65 @@ public class Gui extends Application {
 
     menuBar.getMenus().addAll(fileMenu, AlgorithmMenu);
     menuBar.setLayoutX(10);
-    menuBar.setLayoutY(10);
+    menuBar.setLayoutY(110);
     root.getChildren().add(menuBar);
   }
+  // #endregion
 
+  // #region Layout Helpers
   private Map<String, double[]> createInitialPositions() {
     Map<String, double[]> positions = new HashMap<>();
 
-    positions.put("Bloodborne", new double[] { 150, 100 });
-    positions.put("Dark Souls", new double[] { 350, 200 });
-    positions.put("Sekiro", new double[] { 550, 100 });
-    positions.put("Elden Ring", new double[] { 350, 20 });
-    positions.put("Lies of P", new double[] { 350, 380 });
+    positions.put("Bloodborne", new double[] { 150, 200 });
+    positions.put("Dark Souls", new double[] { 350, 300 });
+    positions.put("Sekiro", new double[] { 550, 200 });
+    positions.put("Elden Ring", new double[] { 350, 120 });
+    positions.put("Lies of P", new double[] { 150, 400 });
 
     positions.put("Minecraft", new double[] { 150, 550 });
-    positions.put("Terraria", new double[] { 350, 650 });
+    positions.put("Terraria", new double[] { 350, 450 });
     positions.put("Valheim", new double[] { 550, 550 });
-    positions.put("Ark", new double[] { 350, 450 });
-    positions.put("The Forest", new double[] { 350, 820 });
+    positions.put("Ark", new double[] { 350, 700 });
+    positions.put("The Forest", new double[] { 550, 700 });
 
-    positions.put("Hollow Knight", new double[] { 850, 250 });
-    positions.put("Blasphemous", new double[] { 1050, 350 });
-    positions.put("Dead Cells", new double[] { 850, 450 });
-    positions.put("Ori and the blind forest", new double[] { 650, 350 });
-    positions.put("Celeste", new double[] { 850, 620 });
+    positions.put("Hollow Knight", new double[] { 1075, 450 });
+    positions.put("Blasphemous", new double[] { 1250, 550 });
+    positions.put("Dead Cells", new double[] { 1150, 700 });
+    positions.put("Ori and the blind forest", new double[] { 850, 550 });
+    positions.put("Celeste", new double[] { 950, 700 });
 
-    positions.put("Skyrim", new double[] { 1350, 150 });
-    positions.put("The Witcher 3", new double[] { 1350, 350 });
-    positions.put("CyberPunk 2077", new double[] { 1350, 550 });
-    positions.put("Fallout 4", new double[] { 1550, 250 });
-    positions.put("Starfield", new double[] { 1550, 450 });
+    positions.put("Skyrim", new double[] { 850, 120 });
+    positions.put("The Witcher 3", new double[] { 1250, 120 });
+    positions.put("CyberPunk 2077", new double[] { 1250, 300 });
+    positions.put("Fallout 4", new double[] { 850, 300 });
+    positions.put("Starfield", new double[] { 1050, 200 });
 
     return positions;
   }
+
+  private void createTopPanel(Pane root) {
+    Rectangle panel = new Rectangle();
+    panel.widthProperty().bind(root.widthProperty());
+    panel.setHeight(82);
+    panel.setFill(Color.CORNFLOWERBLUE);
+
+    Text title = new Text("Game Recommendation Network");
+    title.setLayoutX(18);
+    title.setLayoutY(38);
+    title.setFill(Color.WHITE);
+    title.setStyle("-fx-font-family: 'Avenir Next'; -fx-font-size: 24px; -fx-font-weight: bold;");
+
+    Text subtitle = new Text("Explore how games connect through genre, style, and similarity.");
+    subtitle.setLayoutX(20);
+    subtitle.setLayoutY(62);
+    subtitle.setFill(Color.web("#d1d5db"));
+    subtitle.setStyle("-fx-font-family: 'Avenir Next'; -fx-font-size: 12px;");
+
+    root.getChildren().addAll(panel, title, subtitle);
+    panel.toFront();
+    title.toFront();
+    subtitle.toFront();
+  }
+  // #endregion
+
 }
