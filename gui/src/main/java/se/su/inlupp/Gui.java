@@ -52,7 +52,6 @@ public class Gui extends Application {
   private static final double CARD_HEIGHT = 92;
   private static final double HEADER_HEIGHT = 30;
 
-  private FileHandler fileManager = new FileHandler();
   private Button showAllLinksButton;
   private boolean hasUnsavedChanges = false;
 
@@ -479,11 +478,10 @@ public class Gui extends Application {
   private ImageView createGameImageView(String imagePath) {
     Image img = new Image(imagePath);
     ImageView imgView = new ImageView(img);
-    imgView.setFitWidth(34);
-    imgView.setFitHeight(34);
+    imgView.setFitWidth(CARD_WIDTH);
+    imgView.setFitHeight(CARD_HEIGHT - HEADER_HEIGHT);
+    imgView.setTranslateY(HEADER_HEIGHT / 2);
     imgView.setPreserveRatio(true);
-    imgView.setTranslateX(-52);
-    imgView.setTranslateY(22);
     return imgView;
   }
 
